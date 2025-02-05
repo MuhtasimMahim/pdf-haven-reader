@@ -17,7 +17,9 @@ interface PDFViewerProps {
   url?: string
 }
 
-const PDFViewer = ({ url = "https://www.aeee.in/wp-content/uploads/2020/08/Sample-pdf.pdf" }: PDFViewerProps) => {
+const PDFViewer = ({ 
+  url = "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf" 
+}: PDFViewerProps) => {
   const [isLoading, setIsLoading] = useState(true)
   const [zoomLevel, setZoomLevel] = useState(100)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -35,9 +37,8 @@ const PDFViewer = ({ url = "https://www.aeee.in/wp-content/uploads/2020/08/Sampl
         const response = await fetch(url, {
           method: "GET",
           mode: "cors",
-          credentials: "same-origin",
           headers: {
-            "Content-Type": "application/pdf",
+            "Accept": "application/pdf"
           },
         })
         if (!response.ok) {
