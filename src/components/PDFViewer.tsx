@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Download, ZoomIn, ZoomOut, Maximize, Minimize, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Document, Page, pdfjs } from "react-pdf"
+import { fetchPDFThroughProxy } from "@/api/pdfProxy"
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
 
@@ -18,15 +19,35 @@ interface PDFViewerProps {
 }
 
 const PDFViewer = ({ 
-  url = "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf" 
+  url = "https://www.aeee.in/wp-content/uploads/2020/08/Sample-pdf.pdf" 
 }: PDFViewerProps) => {
   const [isLoading, setIsLoading] = useState(true)
   const [zoomLevel, setZoomLevel] = useState(100)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [numPages, setNumPages] = useState<number | null>(null)
   const [pageNumber, setPageNumber] = useState(1)
+  const [pdfData, setPdfData] = useState<Uint8Array | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
+
+  const loadPDF = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await fetchPDFThroughProxy(url);
+      setPdfData(data);
+    } catch (err) {
+      console.error("Error loading PDF:", err);
+      setError(err instanceof Error ? err.message : "Failed to load PDF");
+      toast({
+        title: "Error Loading PDF",
+        description: err instanceof Error ? err.message : "Failed to load the PDF file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const onDocumentLoadSuccess = ({ numPages }: PageDetails) => {
     setNumPages(numPages)
@@ -50,29 +71,30 @@ const PDFViewer = ({
 
   const handleDownload = async () => {
     try {
-      const response = await fetch(url)
-      const blob = await response.blob()
-      const link = document.createElement("a")
-      link.href = URL.createObjectURL(blob)
-      link.download = "document.pdf"
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(link.href)
+      const data = await fetchPDFThroughProxy(url);
+      const blob = new Blob([data], { type: "application/pdf" });
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = "document.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
 
       toast({
         title: "Download started",
         description: "Your PDF is being downloaded",
-      })
+      });
     } catch (err) {
-      console.error("Error downloading PDF:", err)
+      console.error("Error downloading PDF:", err);
       toast({
         title: "Download Failed",
         description: "Failed to download the PDF file",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const handleZoom = (direction: "in" | "out") => {
     setZoomLevel((prev) => {
@@ -107,8 +129,8 @@ const PDFViewer = ({
     <div className="flex flex-col items-center w-full max-w-5xl mx-auto space-y-6 p-4">
       <div
         className={cn(
-          "w-full bg-background rounded-lg shadow-xl overflow-hidden transition-all duration-300",
-          "hover:shadow-2xl border border-primary",
+          "w-full bg-[#121212] rounded-lg shadow-xl overflow-hidden transition-all duration-300",
+          "hover:shadow-2xl border border-[#00ffd5]",
           isFullscreen && "fixed inset-0 z-50 max-w-none rounded-none"
         )}
       >
@@ -179,18 +201,15 @@ const PDFViewer = ({
           </div>
         </div>
 
-        <div 
-          className="relative w-full bg-muted" 
-          style={{ height: isFullscreen ? "calc(100vh - 64px)" : "70vh" }}
-        >
+        <div className="relative w-full bg-[#1a1a1a]" style={{ height: isFullscreen ? "calc(100vh - 64px)" : "70vh" }}>
           {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-muted">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00ffd5]"></div>
             </div>
           )}
           {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-muted">
-              <div className="text-destructive text-center">
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a]">
+              <div className="text-red-500 text-center">
                 <p className="font-semibold">Error loading PDF</p>
                 <p className="text-sm mt-2">{error}</p>
               </div>
@@ -203,11 +222,11 @@ const PDFViewer = ({
               onLoadError={onDocumentLoadError}
               loading={
                 <div className="flex items-center justify-center h-full">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00ffd5]"></div>
                 </div>
               }
               error={
-                <div className="text-destructive p-4 text-center">
+                <div className="text-red-500 p-4 text-center">
                   <p className="font-semibold">Failed to load PDF file.</p>
                   <p className="text-sm mt-2">Please check the URL and try again.</p>
                 </div>
@@ -219,16 +238,14 @@ const PDFViewer = ({
                 className="shadow-lg"
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
-                loading={
-                  <div className="animate-pulse bg-secondary w-[595px] h-[842px]" />
-                }
+                loading={<div className="animate-pulse bg-[#2a2a2a] w-[595px] h-[842px]" />}
               />
             </Document>
           </div>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default PDFViewer
+export default PDFViewer;
