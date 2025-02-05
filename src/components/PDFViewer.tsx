@@ -25,43 +25,8 @@ const PDFViewer = ({
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [numPages, setNumPages] = useState<number | null>(null)
   const [pageNumber, setPageNumber] = useState(1)
-  const [pdfData, setPdfData] = useState<Uint8Array | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
-
-  useEffect(() => {
-    const fetchPdf = async () => {
-      try {
-        setIsLoading(true)
-        setError(null)
-        const response = await fetch(url, {
-          method: "GET",
-          mode: "cors",
-          headers: {
-            "Accept": "application/pdf"
-          },
-        })
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        const arrayBuffer = await response.arrayBuffer()
-        const uint8Array = new Uint8Array(arrayBuffer)
-        setPdfData(uint8Array)
-      } catch (err) {
-        console.error("Error fetching PDF:", err)
-        setError(err instanceof Error ? err.message : "An unknown error occurred")
-        toast({
-          title: "Error Fetching PDF",
-          description: err instanceof Error ? err.message : "Failed to fetch the PDF file. Please check the URL and try again.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchPdf()
-  }, [url, toast])
 
   const onDocumentLoadSuccess = ({ numPages }: PageDetails) => {
     setNumPages(numPages)
@@ -83,9 +48,10 @@ const PDFViewer = ({
     console.error("Error loading PDF:", error)
   }
 
-  const handleDownload = () => {
-    if (pdfData) {
-      const blob = new Blob([pdfData], { type: "application/pdf" })
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
       const link = document.createElement("a")
       link.href = URL.createObjectURL(blob)
       link.download = "document.pdf"
@@ -97,6 +63,13 @@ const PDFViewer = ({
       toast({
         title: "Download started",
         description: "Your PDF is being downloaded",
+      })
+    } catch (err) {
+      console.error("Error downloading PDF:", err)
+      toast({
+        title: "Download Failed",
+        description: "Failed to download the PDF file",
+        variant: "destructive",
       })
     }
   }
@@ -224,35 +197,33 @@ const PDFViewer = ({
             </div>
           )}
           <div className="w-full h-full flex items-center justify-center overflow-auto">
-            {pdfData && !error && (
-              <Document
-                file={{ data: pdfData }}
-                onLoadSuccess={onDocumentLoadSuccess}
-                onLoadError={onDocumentLoadError}
+            <Document
+              file={url}
+              onLoadSuccess={onDocumentLoadSuccess}
+              onLoadError={onDocumentLoadError}
+              loading={
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                </div>
+              }
+              error={
+                <div className="text-destructive p-4 text-center">
+                  <p className="font-semibold">Failed to load PDF file.</p>
+                  <p className="text-sm mt-2">Please check the URL and try again.</p>
+                </div>
+              }
+            >
+              <Page
+                pageNumber={pageNumber}
+                scale={zoomLevel / 100}
+                className="shadow-lg"
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
                 loading={
-                  <div className="flex items-center justify-center h-full">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                  </div>
+                  <div className="animate-pulse bg-secondary w-[595px] h-[842px]" />
                 }
-                error={
-                  <div className="text-destructive p-4 text-center">
-                    <p className="font-semibold">Failed to load PDF file.</p>
-                    <p className="text-sm mt-2">Please check the URL and try again.</p>
-                  </div>
-                }
-              >
-                <Page
-                  pageNumber={pageNumber}
-                  scale={zoomLevel / 100}
-                  className="shadow-lg"
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
-                  loading={
-                    <div className="animate-pulse bg-secondary w-[595px] h-[842px]" />
-                  }
-                />
-              </Document>
-            )}
+              />
+            </Document>
           </div>
         </div>
       </div>
